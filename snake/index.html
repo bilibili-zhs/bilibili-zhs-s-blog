@@ -1,0 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>贪吃蛇 - zhs焦虑球</title>
+    <style>
+        :root {
+            --bg-color: #f5f6fa;
+            --text-color: #2c3e50;
+            --grid-bg: #ffffff;
+            --snake-color: #2ecc71;
+            --food-color: #e74c3c;
+            --border-color: #ecf0f1;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --grid-bg: #2c3e50;
+            --snake-color: #27ae60;
+            --food-color: #c0392b;
+            --border-color: #34495e;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            font-size: 2em;
+            color: var(--text-color);
+        }
+
+        .game-info {
+            margin-bottom: 20px;
+            font-size: 1.2em;
+            display: flex;
+            justify-content: space-around;
+            width: 100%;
+            max-width: 400px;
+        }
+
+        .score-container {
+            background: var(--grid-bg);
+            padding: 10px 20px;
+            border-radius: 5px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+
+        #game-board {
+            width: 400px;
+            height: 400px;
+            display: grid;
+            grid-template: repeat(20, 1fr) / repeat(20, 1fr);
+            background-color: var(--grid-bg);
+            border: 2px solid var(--border-color);
+            border-radius: 10px;
+            margin: 20px auto;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+
+        .snake {
+            background-color: var(--snake-color);
+            border: 1px solid rgba(255, 255, 255, 0.1);
+        }
+
+        .food {
+            background-color: var(--food-color);
+            border-radius: 50%;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background: var(--snake-color);
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+            margin: 10px;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .theme-switch {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            background: none;
+            border: none;
+            color: var(--text-color);
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+
+        .game-over.show {
+            display: block;
+        }
+
+        @media (max-width: 500px) {
+            #game-board {
+                width: 300px;
+                height: 300px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-switch" onclick="toggleTheme()" title="切换主题">
+        <span id="theme-icon">🌞</span>
+    </div>
+
+    <div class="container">
+        <h1>贪吃蛇</h1>
+        
+        <div class="game-info">
+            <div class="score-container">
+                分数: <span id="score">0</span>
+            </div>
+            <div class="score-container">
+                最高分: <span id="best-score">0</span>
+            </div>
+        </div>
+
+        <div id="game-board"></div>
+
+        <div class="controls">
+            <button onclick="startGame()">开始游戏</button>
+            <button onclick="pauseGame()">暂停/继续</button>
+        </div>
+
+        <div class="game-over" id="gameOver">
+            <h2>游戏结束！</h2>
+            <p>最终得分: <span id="final-score">0</span></p>
+            <button onclick="startGame()">再来一次</button>
+        </div>
+    </div>
+
+    <script>
+        const gameBoard = document.getElementById('game-board');
+        const scoreDisplay = document.getElementById('score');
+        const bestScoreDisplay = document.getElementById('best-score');
+        const gameOverDisplay = document.getElementById('gameOver');
+        const finalScoreDisplay = document.getElementById('final-score');
+
+        const GRID_SIZE = 20;
+        const CELL_COUNT = GRID_SIZE * GRID_SIZE;
+        let snake = [Math.floor(CELL_COUNT / 2)];
+        let food = 0;
+        let direction = 1;
+        let nextDirection = 1;
+        let score = 0;
+        let bestScore = localStorage.getItem('snake-best-score') || 0;
+        let gameInterval;
+        let isPaused = false;
+        let isGameRunning = false;
+
+        bestScoreDisplay.textContent = bestScore;
+
+        // 初始化游戏板
+        for (let i = 0; i < CELL_COUNT; i++) {
+            const cell = document.createElement('div');
+            gameBoard.appendChild(cell);
+        }
+
+        function startGame() {
+            // 重置游戏状态
+            clearInterval(gameInterval);
+            snake = [Math.floor(CELL_COUNT / 2)];
+            direction = 1;
+            nextDirection = 1;
+            score = 0;
+            scoreDisplay.textContent = score;
+            gameOverDisplay.classList.remove('show');
+            isPaused = false;
+            isGameRunning = true;
+
+            // 生成食物
+            generateFood();
+
+            // 开始游戏循环
+            gameInterval = setInterval(gameLoop, 150);
+        }
+
+        function pauseGame() {
+            if (!isGameRunning) return;
+            
+            if (isPaused) {
+                gameInterval = setInterval(gameLoop, 150);
+            } else {
+                clearInterval(gameInterval);
+            }
+            isPaused = !isPaused;
+        }
+
+        function gameLoop() {
+            const head = snake[0];
+            let nextHead;
+
+            // 计算下一个头部位置
+            switch (nextDirection) {
+                case 1: // 右
+                    nextHead = head + 1;
+                    if (head % GRID_SIZE === GRID_SIZE - 1) nextHead = head - (GRID_SIZE - 1);
+                    break;
+                case -1: // 左
+                    nextHead = head - 1;
+                    if (head % GRID_SIZE === 0) nextHead = head + (GRID_SIZE - 1);
+                    break;
+                case GRID_SIZE: // 下
+                    nextHead = head + GRID_SIZE;
+                    if (nextHead >= CELL_COUNT) nextHead = head % GRID_SIZE;
+                    break;
+                case -GRID_SIZE: // 上
+                    nextHead = head - GRID_SIZE;
+                    if (nextHead < 0) nextHead = CELL_COUNT - GRID_SIZE + head;
+                    break;
+            }
+
+            direction = nextDirection;
+
+            // 检查碰撞
+            if (snake.includes(nextHead)) {
+                gameOver();
+                return;
+            }
+
+            // 移动蛇
+            snake.unshift(nextHead);
+
+            // 检查是否吃到食物
+            if (nextHead === food) {
+                score += 10;
+                scoreDisplay.textContent = score;
+                generateFood();
+            } else {
+                snake.pop();
+            }
+
+            // 更新显示
+            updateDisplay();
+        }
+
+        function generateFood() {
+            do {
+                food = Math.floor(Math.random() * CELL_COUNT);
+            } while (snake.includes(food));
+        }
+
+        function updateDisplay() {
+            // 清除所有单元格的类
+            const cells = gameBoard.children;
+            for (let i = 0; i < CELL_COUNT; i++) {
+                cells[i].className = '';
+            }
+
+            // 绘制蛇
+            snake.forEach(segment => {
+                cells[segment].classList.add('snake');
+            });
+
+            // 绘制食物
+            cells[food].classList.add('food');
+        }
+
+        function gameOver() {
+            clearInterval(gameInterval);
+            isGameRunning = false;
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestScoreDisplay.textContent = bestScore;
+                localStorage.setItem('snake-best-score', bestScore);
+            }
+
+            finalScoreDisplay.textContent = score;
+            gameOverDisplay.classList.add('show');
+        }
+
+        // 键盘控制
+        document.addEventListener('keydown', e => {
+            if (!isGameRunning || isPaused) return;
+
+            switch (e.key) {
+                case 'ArrowUp':
+                    if (direction !== GRID_SIZE) nextDirection = -GRID_SIZE;
+                    break;
+                case 'ArrowDown':
+                    if (direction !== -GRID_SIZE) nextDirection = GRID_SIZE;
+                    break;
+                case 'ArrowLeft':
+                    if (direction !== 1) nextDirection = -1;
+                    break;
+                case 'ArrowRight':
+                    if (direction !== -1) nextDirection = 1;
+                    break;
+            }
+        });
+
+        // 触摸控制
+        let touchStartX = 0;
+        let touchStartY = 0;
+
+        gameBoard.addEventListener('touchstart', e => {
+            touchStartX = e.touches[0].clientX;
+            touchStartY = e.touches[0].clientY;
+        });
+
+        gameBoard.addEventListener('touchend', e => {
+            if (!isGameRunning || isPaused) return;
+
+            const touchEndX = e.changedTouches[0].clientX;
+            const touchEndY = e.changedTouches[0].clientY;
+            
+            const deltaX = touchEndX - touchStartX;
+            const deltaY = touchEndY - touchStartY;
+            
+            if (Math.abs(deltaX) > Math.abs(deltaY)) {
+                if (deltaX > 50 && direction !== -1) {
+                    nextDirection = 1;
+                } else if (deltaX < -50 && direction !== 1) {
+                    nextDirection = -1;
+                }
+            } else {
+                if (deltaY > 50 && direction !== -GRID_SIZE) {
+                    nextDirection = GRID_SIZE;
+                } else if (deltaY < -50 && direction !== GRID_SIZE) {
+                    nextDirection = -GRID_SIZE;
+                }
+            }
+        });
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌞' : '🌙';
+        }
+
+        // 检查系统主题
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('theme-icon').textContent = '🌙';
+        }
+    </script>
+</body>
+</html> 

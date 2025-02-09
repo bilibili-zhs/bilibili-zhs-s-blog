@@ -1,0 +1,395 @@
+<!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>跳跃游戏 - zhs焦虑球</title>
+    <style>
+        :root {
+            --bg-color: #f5f6fa;
+            --text-color: #2c3e50;
+            --platform-color: #27ae60;
+            --player-color: #e74c3c;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --platform-color: #2ecc71;
+            --player-color: #e74c3c;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+            position: relative;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            font-size: 2em;
+            color: var(--text-color);
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 400px;
+            height: 600px;
+            margin: 20px auto;
+        }
+
+        #gameCanvas {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+        }
+
+        .score-container {
+            position: absolute;
+            top: 20px;
+            left: 50%;
+            transform: translateX(-50%);
+            background: rgba(0, 0, 0, 0.5);
+            color: white;
+            padding: 10px 20px;
+            border-radius: 5px;
+            font-size: 1.2em;
+            display: flex;
+            gap: 20px;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .theme-switch {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            background: none;
+            border: none;
+            color: var(--text-color);
+        }
+
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+        }
+
+        .game-over.show {
+            display: block;
+        }
+
+        @media (max-width: 600px) {
+            .canvas-container {
+                width: 100%;
+                max-width: 400px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-switch" onclick="toggleTheme()" title="切换主题">
+        <span id="theme-icon">🌞</span>
+    </div>
+
+    <div class="container">
+        <h1>跳跃游戏</h1>
+        
+        <div class="canvas-container">
+            <canvas id="gameCanvas" width="400" height="600"></canvas>
+            <div class="score-container">
+                <div>分数: <span id="score">0</span></div>
+                <div>最高分: <span id="best-score">0</span></div>
+            </div>
+        </div>
+
+        <div class="controls">
+            <button onclick="startGame()">开始游戏</button>
+        </div>
+
+        <div class="game-over" id="gameOver">
+            <h2>游戏结束</h2>
+            <p>最终得分: <span id="final-score">0</span></p>
+            <button onclick="startGame()">再来一次</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const bestScoreDisplay = document.getElementById('best-score');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreDisplay = document.getElementById('final-score');
+
+        // 游戏配置
+        const GRAVITY = 0.4;
+        const JUMP_FORCE = -12;
+        const PLATFORM_WIDTH = 60;
+        const PLATFORM_HEIGHT = 15;
+        const PLAYER_SIZE = 30;
+        const PLATFORM_COUNT = 8;
+        const SCROLL_SPEED = 3;
+
+        // 游戏状态
+        let score = 0;
+        let bestScore = localStorage.getItem('doodle-jump-best-score') || 0;
+        let player;
+        let platforms = [];
+        let gameLoop;
+        let isGameOver = false;
+        let keys = {};
+
+        bestScoreDisplay.textContent = bestScore;
+
+        class Player {
+            constructor() {
+                this.width = PLAYER_SIZE;
+                this.height = PLAYER_SIZE;
+                this.x = canvas.width / 2 - this.width / 2;
+                this.y = canvas.height - 100;
+                this.vy = 0;
+                this.vx = 0;
+                this.jumpForce = JUMP_FORCE;
+                this.emoji = '🦘';
+            }
+
+            update() {
+                this.vy += GRAVITY;
+                this.y += this.vy;
+                this.x += this.vx;
+
+                // 水平移动
+                if (keys.ArrowLeft) this.vx = -5;
+                else if (keys.ArrowRight) this.vx = 5;
+                else this.vx *= 0.8;
+
+                // 边界检查
+                if (this.x < 0) {
+                    this.x = canvas.width - this.width;
+                } else if (this.x + this.width > canvas.width) {
+                    this.x = 0;
+                }
+
+                // 检查游戏结束
+                if (this.y > canvas.height) {
+                    endGame();
+                }
+            }
+
+            draw() {
+                ctx.font = `${this.width}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.emoji, this.x + this.width/2, this.y + this.height/2);
+            }
+
+            jump() {
+                this.vy = this.jumpForce;
+            }
+        }
+
+        class Platform {
+            constructor(x, y) {
+                this.width = PLATFORM_WIDTH;
+                this.height = PLATFORM_HEIGHT;
+                this.x = x;
+                this.y = y;
+                this.type = Math.random() < 0.1 ? 'boost' : 'normal';
+            }
+
+            draw() {
+                ctx.fillStyle = this.type === 'boost' ? '#e74c3c' : 'var(--platform-color)';
+                ctx.fillRect(this.x, this.y, this.width, this.height);
+            }
+        }
+
+        function createPlatforms() {
+            platforms = [];
+            // 第一个平台在玩家下方
+            platforms.push(new Platform(
+                canvas.width/2 - PLATFORM_WIDTH/2,
+                canvas.height - 50
+            ));
+
+            // 创建其他平台
+            for (let i = 0; i < PLATFORM_COUNT; i++) {
+                platforms.push(new Platform(
+                    Math.random() * (canvas.width - PLATFORM_WIDTH),
+                    (canvas.height / PLATFORM_COUNT) * i
+                ));
+            }
+        }
+
+        function startGame() {
+            // 重置游戏状态
+            score = 0;
+            isGameOver = false;
+            scoreDisplay.textContent = score;
+            gameOverScreen.classList.remove('show');
+            
+            // 创建玩家和平台
+            player = new Player();
+            createPlatforms();
+            
+            // 开始游戏循环
+            if (gameLoop) cancelAnimationFrame(gameLoop);
+            gameLoop = requestAnimationFrame(update);
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            
+            player.update();
+
+            // 检查碰撞
+            if (player.vy > 0) {
+                for (let platform of platforms) {
+                    if (player.y + player.height > platform.y &&
+                        player.y + player.height < platform.y + platform.height &&
+                        player.x + player.width > platform.x &&
+                        player.x < platform.x + platform.width) {
+                        
+                        if (platform.type === 'boost') {
+                            player.jumpForce = JUMP_FORCE * 1.5;
+                        } else {
+                            player.jumpForce = JUMP_FORCE;
+                        }
+                        player.jump();
+                    }
+                }
+            }
+
+            // 相机跟随
+            if (player.y < canvas.height/2) {
+                let diff = canvas.height/2 - player.y;
+                player.y += diff;
+                for (let platform of platforms) {
+                    platform.y += diff;
+                    
+                    // 如果平台移出屏幕，在上方重新生成
+                    if (platform.y > canvas.height) {
+                        platform.y = 0;
+                        platform.x = Math.random() * (canvas.width - platform.width);
+                        platform.type = Math.random() < 0.1 ? 'boost' : 'normal';
+                        score += 10;
+                        scoreDisplay.textContent = score;
+                    }
+                }
+            }
+
+            // 绘制所有元素
+            platforms.forEach(platform => platform.draw());
+            player.draw();
+
+            gameLoop = requestAnimationFrame(update);
+        }
+
+        function endGame() {
+            isGameOver = true;
+            cancelAnimationFrame(gameLoop);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestScoreDisplay.textContent = bestScore;
+                localStorage.setItem('doodle-jump-best-score', bestScore);
+            }
+
+            finalScoreDisplay.textContent = score;
+            gameOverScreen.classList.add('show');
+        }
+
+        // 键盘控制
+        window.addEventListener('keydown', e => {
+            keys[e.code] = true;
+        });
+
+        window.addEventListener('keyup', e => {
+            keys[e.code] = false;
+        });
+
+        // 触摸控制
+        let touchStartX = 0;
+        canvas.addEventListener('touchstart', e => {
+            touchStartX = e.touches[0].clientX;
+        });
+
+        canvas.addEventListener('touchmove', e => {
+            const touchX = e.touches[0].clientX;
+            const diff = touchX - touchStartX;
+            
+            if (diff > 5) keys.ArrowRight = true;
+            else if (diff < -5) keys.ArrowLeft = true;
+            else {
+                keys.ArrowRight = false;
+                keys.ArrowLeft = false;
+            }
+            
+            touchStartX = touchX;
+        });
+
+        canvas.addEventListener('touchend', () => {
+            keys.ArrowRight = false;
+            keys.ArrowLeft = false;
+        });
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌞' : '🌙';
+        }
+
+        // 检查系统主题
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('theme-icon').textContent = '🌙';
+        }
+    </script>
+</body>
+</html>

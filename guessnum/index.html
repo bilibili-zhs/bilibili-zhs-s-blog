@@ -1,0 +1,669 @@
+<!DOCTYPE html>
+
+<head>
+    <meta charset="UTF-8">
+    <!-- 添加移动设备相关的 meta 标签 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self' 'unsafe-inline' 'unsafe-eval' data: gap: https://ssl.gstatic.com; style-src 'self' 'unsafe-inline'; media-src *; img-src 'self' data: content:;">
+    <meta name="format-detection" content="telephone=no">
+    <meta name="msapplication-tap-highlight" content="no">
+    
+    <title>猜数字游戏</title>
+
+    <!-- 添加 Cordova 相关文件 -->
+    <script type="text/javascript" src="cordova.js"></script>
+    <script type="text/javascript">
+        // 等待设备准备就绪
+        document.addEventListener('deviceready', onDeviceReady, false);
+
+        function onDeviceReady() {
+            // 防止设备返回按钮直接退出应用
+            document.addEventListener("backbutton", function(e) {
+                e.preventDefault();
+                if (confirm("确定要退出游戏吗？")) {
+                    navigator.app.exitApp();
+                }
+            }, false);
+        }
+    </script>
+
+    <!-- 使用本地图标文件 -->
+    <link rel="icon" type="image/png" href="favicon.png">
+    <style>
+        :root {
+            --theme-color: #3498db;
+            --theme-hover: #2980b9;
+        }
+
+        body {
+            font-family: 'Microsoft YaHei', sans-serif;
+            margin: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            min-height: 100vh;
+            background: linear-gradient(135deg, #EDF2F7 0%, #E2E8F0 100%);
+        }
+        
+        .container {
+            background: white;
+            padding: min(1.5rem, 4vw);  /* 根据视窗大小自动调整内边距 */
+            border-radius: 15px;
+            box-shadow: 0 10px 30px rgba(0,0,0,0.1);
+            width: min(90%, 400px);     /* 限制最大宽度，但保持响应式 */
+            text-align: center;
+            transform: translateY(0);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+            margin: auto;
+            position: relative;
+            min-height: min-content;    /* 确保容器高度适应内容 */
+        }
+
+        .theme-picker, .language-picker {
+            position: fixed;
+            background: white;
+            padding: min(15px, 3vw);
+            border-radius: 10px;
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+            z-index: 1000;
+            animation: slideIn 0.5s ease-out;
+        }
+
+        .theme-picker {
+            top: 10px;
+            right: 10px;
+        }
+
+        .language-picker {
+            top: 10px;
+            left: 10px;
+        }
+
+        .theme-picker label {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: #2c3e50;
+            font-size: 0.9rem;
+        }
+
+        .theme-picker input[type="color"] {
+            width: 50px;
+            height: 30px;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+        }
+
+        button {
+            background: var(--theme-color);
+            color: white;
+            border: none;
+            padding: 10px 25px;
+            font-size: 1.1rem;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: all 0.3s ease;
+            position: relative;
+            overflow: hidden;
+            width: 100%;
+            margin: 0;
+        }
+
+        button:hover {
+            background: var(--theme-hover);
+            transform: translateY(-2px);
+            box-shadow: 0 5px 15px rgba(0,0,0,0.1);
+        }
+
+        .restart-btn {
+            background: var(--theme-color);
+            margin-top: 1.5rem;
+        }
+
+        .restart-btn:hover {
+            background: var(--theme-hover);
+        }
+
+        h1 {
+            color: #2c3e50;
+            margin: 0 0 1rem 0;
+            font-size: 1.8rem;
+            animation: slideDown 0.8s ease-out;
+        }
+
+        @keyframes slideDown {
+            from {
+                opacity: 0;
+                transform: translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        .setup-container, .game-container {
+            opacity: 1;
+            transform: scale(1);
+            transition: all 0.5s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .setup-container.hidden, .game-container.hidden {
+            opacity: 0;
+            transform: scale(0.95);
+            pointer-events: none;
+        }
+
+        input {
+            width: 150px;
+            padding: 8px;
+            font-size: 1.1rem;
+            border: 2px solid #ddd;
+            border-radius: 8px;
+            margin: 0;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        input:focus {
+            border-color: #3498db;
+            box-shadow: 0 0 10px rgba(52, 152, 219, 0.3);
+            transform: scale(1.02);
+        }
+
+        #message {
+            width: 80%;
+            margin: 1rem auto;
+            font-size: 1.2rem;
+            padding: 1rem;
+            border-radius: 8px;
+            transition: all 0.4s ease;
+            opacity: 0;
+            transform: translateY(10px);
+        }
+
+        #message.show {
+            opacity: 1;
+            transform: translateY(0);
+        }
+
+        .success {
+            background: #d4edda;
+            color: #155724;
+            animation: pulse 1s ease-in-out;
+        }
+
+        @keyframes pulse {
+            0% { transform: scale(1); }
+            50% { transform: scale(1.05); }
+            100% { transform: scale(1); }
+        }
+
+        .error {
+            background: #f8d7da;
+            color: #721c24;
+            animation: shake 0.5s ease-in-out;
+        }
+
+        @keyframes shake {
+            0%, 100% { transform: translateX(0); }
+            25% { transform: translateX(-5px); }
+            75% { transform: translateX(5px); }
+        }
+
+        .hint {
+            background: #cce5ff;
+            color: #004085;
+            animation: fadeIn 0.3s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+        }
+
+        #attempts {
+            text-align: center;
+            margin: 1rem 0;
+            color: #7f8c8d;
+            font-size: 1rem;
+        }
+
+        .range-inputs {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            gap: 10px;
+            margin: 1rem 0;
+        }
+
+        .range-inputs input {
+            flex: 1;
+            max-width: 150px;
+        }
+
+        .color-display {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+        }
+
+        
+
+        #currentColor {
+            font-family: monospace;
+            font-size: 0.9rem;
+            color: #666;
+            background: #f5f6f7;
+            padding: 4px 8px;
+            border-radius: 4px;
+            min-width: 70px;
+        }
+
+        .setup-container {
+            display: flex;
+            flex-direction: column;
+            gap: 1rem;
+        }
+
+        p {
+            margin: 0;
+            color: #2c3e50;
+            font-size: 1.1rem;
+        }
+
+        .game-container {
+            display: none;
+        }
+
+        .game-container.show {
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            padding: 1rem 0;
+        }
+
+        .game-input-area {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            gap: 1rem;
+            width: 100%;
+        }
+
+        #guessInput {
+            width: 60%;
+            max-width: 200px;
+            text-align: center;
+            font-size: 1.2rem;
+            padding: 10px;
+        }
+
+        .game-input-area button {
+            width: 60%;
+            max-width: 200px;
+        }
+
+        #gamePrompt {
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+            color: #2c3e50;
+        }
+
+        /* 添加版权样式 */
+        .copyright {
+            position: absolute;
+            bottom: 20px;
+            left: 0;
+            right: 0;
+            text-align: center;
+            color: #718096;
+            font-size: 0.9rem;
+            opacity: 0.8;
+            transition: opacity 0.3s ease;
+        }
+
+        .copyright:hover {
+            opacity: 1;
+        }
+
+        .language-picker select {
+            margin-top: 5px;
+            padding: 5px 10px;
+            border: 2px solid #ddd;
+            border-radius: 6px;
+            font-size: 0.9rem;
+            cursor: pointer;
+            outline: none;
+            transition: all 0.3s ease;
+        }
+
+        .language-picker select:hover {
+            border-color: var(--theme-color);
+        }
+
+        .language-picker label {
+            display: flex;
+            flex-direction: column;
+            gap: 5px;
+            color: #2c3e50;
+            font-size: 0.9rem;
+        }
+
+        /* 修改移动设备适配的样式 */
+        @media screen and (max-width: 768px) {
+            body {
+                padding: 0;
+                min-height: 100vh;
+                box-sizing: border-box;
+                display: flex;
+                flex-direction: column;
+                align-items: center;
+            }
+
+            .theme-picker, .language-picker {
+                position: relative;
+                top: auto;
+                left: auto;
+                right: auto;
+                width: min(90%, 400px);
+                margin: 10px auto;
+            }
+
+            .container {
+                margin: 10px auto;
+                width: min(90%, 400px);
+            }
+
+            .copyright {
+                position: relative;
+                margin: 20px 0;
+            }
+        }
+
+        /* 修改横屏模式下的样式 */
+        @media screen and (orientation: landscape) and (max-height: 600px) {
+            body {
+                padding: 10px;
+            }
+
+            .theme-picker, .language-picker {
+                position: relative;
+                padding: 8px;
+                margin: 5px auto;
+            }
+
+            .container {
+                padding: 15px;
+                margin: 5px auto;
+            }
+        }
+
+        /* 添加大屏幕适配 */
+        @media screen and (min-width: 1200px) {
+            .theme-picker {
+                top: 30px;
+                right: 30px;
+            }
+
+            .language-picker {
+                top: 30px;
+                left: 30px;
+            }
+
+            .container {
+                max-width: 500px;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-picker">
+        <label>
+            主题色
+            <div class="color-display">
+                <input type="color" id="themeColor" value="#3498db" oninput="updateTheme()">
+                <div class="color-preview" id="colorPreview"></div>
+                <span id="currentColor">#3498db</span>
+            </div>
+        </label>
+    </div>
+
+    <div class="language-picker">
+        <label>
+            语言/Language
+            <select id="languageSelect" onchange="changeLanguage()">
+                <option value="zh">中文</option>
+                <option value="en">English</option>
+            </select>
+        </label>
+    </div>
+
+    <div class="container">
+        <h1>猜数字游戏</h1>
+        
+        <div id="setupContainer" class="setup-container">
+            <p>请设置猜数字的范围：</p>
+            <div class="range-inputs">
+                <input type="number" id="minRange" placeholder="最小值" value="1">
+                <span>到</span>
+                <input type="number" id="maxRange" placeholder="最大值" value="100">
+            </div>
+            <button onclick="startGame()">开始游戏</button>
+        </div>
+
+        <div id="gameContainer" class="game-container hidden">
+            <p id="gamePrompt">请猜一个数字：</p>
+            <div class="game-input-area">
+                <input type="number" id="guessInput">
+                <button onclick="checkGuess()">提交</button>
+            </div>
+            <div id="message"></div>
+            <div id="attempts">已猜次数：0</div>
+            <button class="restart-btn" onclick="restartGame()">重新开始</button>
+        </div>
+    </div>
+
+    <div class="copyright">
+        © 2024 zhs. 保留所有权利
+    </div>
+
+    <script>
+        let targetNumber;
+        let minNum = 1;
+        let maxNum = 100;
+        let attempts = 0;
+        
+        function startGame() {
+            minNum = parseInt(document.getElementById('minRange').value);
+            maxNum = parseInt(document.getElementById('maxRange').value);
+            
+            if (isNaN(minNum) || isNaN(maxNum) || minNum >= maxNum) {
+                alert('请输入有效的范围，最小值必须小于最大值！');
+                return;
+            }
+            
+            targetNumber = Math.floor(Math.random() * (maxNum - minNum + 1)) + minNum;
+            
+            document.getElementById('setupContainer').classList.add('hidden');
+            setTimeout(() => {
+                document.getElementById('setupContainer').style.display = 'none';
+                document.getElementById('gameContainer').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('gameContainer').classList.remove('hidden');
+                }, 50);
+            }, 500);
+
+            document.getElementById('gamePrompt').textContent = 
+                `请猜一个${minNum}到${maxNum}之间的数字：`;
+            document.getElementById('guessInput').min = minNum;
+            document.getElementById('guessInput').max = maxNum;
+            
+            attempts = 0;
+            document.getElementById('attempts').textContent = '已猜次数：0';
+            document.getElementById('message').className = '';
+            document.getElementById('message').textContent = '';
+            document.querySelector('#gameContainer button').disabled = false;
+        }
+        
+        function checkGuess() {
+            const guess = parseInt(document.getElementById('guessInput').value);
+            const messageDiv = document.getElementById('message');
+            attempts++;
+            document.getElementById('attempts').textContent = `已猜次数：${attempts}`;
+        
+            messageDiv.className = '';
+            setTimeout(() => {
+                messageDiv.classList.add('show');
+                
+                const lang = languages[currentLanguage];
+                
+                if (isNaN(guess) || guess < minNum || guess > maxNum) {
+                    messageDiv.textContent = `${lang.invalidNumber}`;
+                    messageDiv.classList.add('error');
+                    attempts--;
+                    document.getElementById('attempts').textContent = `已猜次数：${attempts}`;
+                } else if (guess === targetNumber) {
+                    messageDiv.textContent = lang.success
+                        .replace('{attempts}', attempts)
+                        .replace('{number}', targetNumber);
+                    messageDiv.classList.add('success');
+                    document.querySelector('#gameContainer button').disabled = true;
+                } else {
+                    const diff = Math.abs(guess - targetNumber);
+                    const range = maxNum - minNum;
+                    let message = "";
+        
+                    if (guess < targetNumber) {
+                        if (diff <= range * 0.05) {
+                            message = `${lang.veryClose} ${lang.close} ${lang.rightDirection} 继续往大的猜！`;
+                        } else if (diff <= range * 0.1) {
+                            message = `${lang.close} ${lang.rightDirection} 需要再大一些。`;
+                        } else if (diff <= range * 0.2) {
+                            message = `${lang.rightDirection} 继续往大的猜！`;
+                        } else {
+                            message = `${lang.tooSmall} 再试一次。`;
+                        }
+                    } else {
+                        if (diff <= range * 0.05) {
+                            message = `${lang.veryClose} ${lang.close} ${lang.rightDirection} 继续往小的猜！`;
+                        } else if (diff <= range * 0.1) {
+                            message = `${lang.close} ${lang.rightDirection} 需要再小一些。`;
+                        } else if (diff <= range * 0.2) {
+                            message = `${lang.rightDirection} 继续往小的猜！`;
+                        } else {
+                            message = `${lang.tooBig} 再试一次。`;
+                        }
+                    }
+                    
+                    messageDiv.textContent = message;
+                    messageDiv.classList.add('hint');
+                }
+            }, 50);
+            
+            document.getElementById('guessInput').value = '';
+            document.getElementById('guessInput').focus();
+        }
+        
+        function restartGame() {
+            document.getElementById('gameContainer').classList.add('hidden');
+            setTimeout(() => {
+                document.getElementById('gameContainer').style.display = 'none';
+                document.getElementById('setupContainer').style.display = 'block';
+                setTimeout(() => {
+                    document.getElementById('setupContainer').classList.remove('hidden');
+                }, 50);
+            }, 500);
+        }
+
+        document.getElementById('guessInput').addEventListener('keypress', function(e) {
+            if (e.key === 'Enter') {
+                checkGuess();
+            }
+        });
+
+        function updateTheme() {
+            const themeColor = document.getElementById('themeColor').value;
+            const themeHover = adjustColor(themeColor, -20);
+            document.documentElement.style.setProperty('--theme-color', themeColor);
+            document.documentElement.style.setProperty('--theme-hover', themeHover);
+            document.getElementById('currentColor').textContent = themeColor.toUpperCase();
+            document.getElementById('colorPreview').style.backgroundColor = themeColor;
+        }
+
+        function adjustColor(color, amount) {
+            return '#' + color.replace(/^#/, '').replace(/../g, color => 
+                ('0' + Math.min(255, Math.max(0, parseInt(color, 16) + amount)).toString(16)).substr(-2)
+            );
+        }
+
+        updateTheme();
+
+        // 语言配置
+        const languages = {
+            zh: {
+                title: "猜数字游戏",
+                setRange: "请设置猜数字的范围：",
+                to: "到",
+                startGame: "开始游戏",
+                guessPrompt: "请猜一个数字：",
+                submit: "提交",
+                attempts: "已猜次数：",
+                restart: "重新开始",
+                invalidRange: "请输入有效的范围，最小值必须小于最大值！",
+                invalidNumber: "请输入有效数字！",
+                tooSmall: "数字太小了！🤔 再试一次。",
+                tooBig: "数字太大了！🤔 再试一次。",
+                veryClose: "好厉害！就差一点点了！💪",
+                close: "很接近了！🎯",
+                rightDirection: "方向对了！👍",
+                success: "恭喜你！🎉 经过{attempts}次尝试，你成功猜出了答案{number}！",
+                copyright: "© 2024-2025 zhs. 保留所有权利",
+                themeColor: "主题色"
+            },
+            en: {
+                title: "Number Guessing Game",
+                setRange: "Please set the number range:",
+                to: "to",
+                startGame: "Start Game",
+                guessPrompt: "Guess a number:",
+                submit: "Submit",
+                attempts: "Attempts: ",
+                restart: "Restart",
+                invalidRange: "Please enter a valid range, minimum must be less than maximum!",
+                invalidNumber: "Please enter a valid number!",
+                tooSmall: "Too small! 🤔 Try again.",
+                tooBig: "Too big! 🤔 Try again.",
+                veryClose: "Almost there! 💪",
+                close: "Getting close! 🎯",
+                rightDirection: "Right direction! 👍",
+                success: "Congratulations! 🎉 You found the answer {number} in {attempts} attempts!",
+                copyright: "© 2024-2025 zhs. All rights reserved",
+                themeColor: "Theme Color"
+            }
+        };
+
+        let currentLanguage = 'zh';
+
+        function changeLanguage() {
+            currentLanguage = document.getElementById('languageSelect').value;
+            const lang = languages[currentLanguage];
+
+            // 更新所有文本
+            document.title = lang.title;
+            document.querySelector('h1').textContent = lang.title;
+            document.querySelector('.setup-container p').textContent = lang.setRange;
+            document.querySelector('.range-inputs span').textContent = lang.to;
+            document.querySelector('.setup-container button').textContent = lang.startGame;
+            document.getElementById('gamePrompt').textContent = 
+                `${lang.guessPrompt} ${minNum}${lang.to}${maxNum}`;
+            document.querySelector('.game-input-area button').textContent = lang.submit;
+            document.querySelector('.restart-btn').textContent = lang.restart;
+            document.getElementById('attempts').textContent = `${lang.attempts}${attempts}`;
+            document.querySelector('.theme-picker label').firstChild.textContent = lang.themeColor;
+            document.querySelector('.copyright').textContent = lang.copyright;
+        }
+    </script>
+</body>
+</html>
