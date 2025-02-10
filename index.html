@@ -12,31 +12,28 @@
             --bg-color: #f5f6fa;
             --text-color: #2c3e50;
             --text-secondary: #7f8c8d;
-            --card-bg: rgba(255, 255, 255, 0.9);
+            --card-bg: #ffffff;
+            --card-hover: #f8f9fa;
             --card-shadow: rgba(0, 0, 0, 0.1);
-            --hover-bg: rgba(52, 152, 219, 0.9);
         }
 
         :root[data-theme="dark"] {
             --bg-color: #1a1a1a;
             --text-color: #ffffff;
             --text-secondary: #b0b0b0;
-            --card-bg: rgba(30, 30, 30, 0.9);
-            --card-shadow: rgba(0, 0, 0, 0.3);
-            --hover-bg: rgba(52, 152, 219, 0.7);
+            --card-bg: #2c3e50;
+            --card-hover: #34495e;
+            --card-shadow: rgba(0, 0, 0, 0.2);
         }
 
         body {
-            background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Microsoft YaHei', sans-serif;
             margin: 0;
-            padding: 40px;
+            padding: 0;
             min-height: 100vh;
-            display: flex;
-            flex-direction: column;
-            align-items: center;
-            background: url('background.png') center/cover fixed;  /* 添加背景图片 */
+            font-family: 'Microsoft YaHei', sans-serif;
+            background: url('https://pic1.imgdb.cn/item/678e4e88d0e0a243d4f5f4b9.png') center/cover fixed;
+            color: var(--text-color);
+            transition: all 0.3s ease;
         }
 
         .profile-container {
@@ -703,10 +700,15 @@
         <a href="guessnum/" class="tool-card" target="_blank">
             <div class="tool-content">
                 <img src="favicon.png" class="tool-icon" alt="猜数字游戏">
-                <div class="tool-text">
-                    <h3 class="tool-title">猜数字游戏</h3>
-                    <p class="tool-description">一个简单有趣的猜数字小游戏</p>
-                </div>
+                <h3>猜数字游戏</h3>
+                <p>来试试你的运气吧！</p>
+            </div>
+        </a>
+        <a href="消消乐/" class="tool-card" target="_blank">
+            <div class="tool-content">
+                <img src="favicon.png" class="tool-icon" alt="消消乐">
+                <h3>消消乐</h3>
+                <p>经典的消除游戏！</p>
             </div>
         </a>
 
