@@ -511,4 +511,1030 @@
         }
     </script>
 </body>
+</html> <!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水果忍者 - zhs焦虑球</title>
+    <style>
+        :root {
+            --bg-color: #f5f6fa;
+            --text-color: #2c3e50;
+            --score-bg: rgba(255, 255, 255, 0.2);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --score-bg: rgba(0, 0, 0, 0.2);
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            margin: 20px 0;
+        }
+
+        h1 {
+            margin: 20px 0;
+            font-size: 2em;
+            color: var(--text-color);
+        }
+
+        #gameCanvas {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #blade {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .game-info {
+            position: relative;
+            display: flex;
+            gap: 20px;
+            z-index: 10;
+            margin-bottom: 20px;
+        }
+
+        .score-container {
+            background: var(--score-bg);
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: white;
+            font-size: 1.2em;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .theme-switch {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            background: none;
+            border: none;
+            color: var(--text-color);
+            z-index: 100;
+        }
+
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+        }
+
+        .game-over.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-switch" onclick="toggleTheme()" title="切换主题">
+        <span id="theme-icon">🌞</span>
+    </div>
+
+    <div class="container">
+        <h1>水果忍者</h1>
+        
+        <div class="game-info">
+            <div class="score-container">
+                分数: <span id="score">0</span>
+            </div>
+            <div class="score-container">
+                最高分: <span id="best-score">0</span>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <canvas id="blade" width="800" height="600"></canvas>
+        </div>
+
+        <div class="controls">
+            <button onclick="startGame()">开始游戏</button>
+        </div>
+
+        <div class="game-over" id="gameOver">
+            <h2>游戏结束</h2>
+            <p>最终得分: <span id="final-score">0</span></p>
+            <button onclick="startGame()">再来一次</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const bladeCanvas = document.getElementById('blade');
+        const bladeCtx = bladeCanvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const bestScoreDisplay = document.getElementById('best-score');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreDisplay = document.getElementById('final-score');
+
+        // 游戏配置
+        const GRAVITY = 0.25;
+        const FRUIT_INTERVAL = 1200;
+        const BLADE_FADE_TIME = 100;
+
+        // 游戏状态
+        let score = 0;
+        let bestScore = localStorage.getItem('fruit-ninja-best-score') || 0;
+        let isGameOver = false;
+        let fruits = [];
+        let bladePoints = [];
+        let lastBladePoint = null;
+        let gameLoop;
+        let fruitInterval;
+
+        // 水果类型
+        const FRUITS = [
+            { emoji: '🍎', points: 10, size: 60 },
+            { emoji: '🍐', points: 10, size: 60 },
+            { emoji: '🍊', points: 10, size: 60 },
+            { emoji: '🍋', points: 15, size: 60 },
+            { emoji: '🍇', points: 15, size: 60 },
+            { emoji: '🍉', points: 20, size: 75 },
+            { emoji: '🍌', points: 15, size: 60 },
+            { emoji: '🥝', points: 20, size: 55 },
+            { emoji: '💣', points: -50, size: 60, isBomb: true }
+        ];
+
+        bestScoreDisplay.textContent = bestScore;
+
+        class Fruit {
+            constructor(type) {
+                this.type = type;
+                this.x = Math.random() * (canvas.width * 0.6) + (canvas.width * 0.2);
+                this.y = canvas.height + 50;
+                const minSpeed = 2;
+                this.speedX = ((Math.random() - 0.5) * 6) + (Math.random() < 0.5 ? -minSpeed : minSpeed);
+                this.speedY = -Math.random() * 10 - 8;
+                this.rotation = 0;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.1;
+                this.sliced = false;
+                this.fadeOut = 1;
+            }
+
+            update() {
+                if (!this.sliced) {
+                    this.speedY += GRAVITY;
+                } else {
+                    this.speedY += GRAVITY * 1.5;
+                    this.fadeOut -= 0.02;
+                }
+                
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                const margin = this.type.size / 2;
+                if (this.x < margin) {
+                    this.x = margin;
+                    this.speedX *= -0.8;
+                } else if (this.x > canvas.width - margin) {
+                    this.x = canvas.width - margin;
+                    this.speedX *= -0.8;
+                }
+
+                this.rotation += this.rotationSpeed;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.globalAlpha = this.fadeOut;
+                ctx.font = `${this.type.size}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.type.emoji, 0, 0);
+                ctx.restore();
+            }
+
+            isOffScreen() {
+                return this.y > canvas.height + 100 || this.fadeOut <= 0;
+            }
+        }
+
+        function startGame() {
+            // 重置游戏状态
+            score = 0;
+            isGameOver = false;
+            fruits = [];
+            scoreDisplay.textContent = score;
+            gameOverScreen.classList.remove('show');
+
+            // 清除之前的定时器
+            clearInterval(fruitInterval);
+            cancelAnimationFrame(gameLoop);
+
+            // 开始生成水果
+            fruitInterval = setInterval(createFruit, FRUIT_INTERVAL);
+
+            // 开始游戏循环
+            gameLoop = requestAnimationFrame(update);
+        }
+
+        function createFruit() {
+            if (isGameOver) return;
+            
+            // 随机选择水果类型
+            const randomFruit = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+            fruits.push(new Fruit(randomFruit));
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 更新和绘制所有水果
+            fruits = fruits.filter(fruit => {
+                fruit.update();
+                fruit.draw();
+                return !fruit.isOffScreen();
+            });
+
+            // 检查刀光碰撞
+            if (bladePoints.length >= 2) {
+                checkSlice();
+            }
+
+            // 继续游戏循环
+            gameLoop = requestAnimationFrame(update);
+        }
+
+        function checkSlice() {
+            if (bladePoints.length < 2) return;
+            
+            const p1 = bladePoints[bladePoints.length - 2];
+            const p2 = bladePoints[bladePoints.length - 1];
+            
+            fruits.forEach(fruit => {
+                if (!fruit.sliced) {
+                    const fruitRadius = fruit.type.size / 2;
+                    
+                    // 计算刀光线段和水果的碰撞
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const len = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (len === 0) return;
+                    
+                    // 计算线段到圆心的距离
+                    const t = Math.max(0, Math.min(1, ((fruit.x - p1.x) * dx + (fruit.y - p1.y) * dy) / (len * len)));
+                    const closestX = p1.x + t * dx;
+                    const closestY = p1.y + t * dy;
+                    
+                    const distanceToLine = Math.sqrt(
+                        (fruit.x - closestX) * (fruit.x - closestX) + 
+                        (fruit.y - closestY) * (fruit.y - closestY)
+                    );
+                    
+                    if (distanceToLine < fruitRadius) {
+                        fruit.sliced = true;
+                        if (fruit.type.isBomb) {
+                            endGame();
+                        } else {
+                            score += fruit.type.points;
+                            scoreDisplay.textContent = score;
+                            createSliceEffect(fruit.x, fruit.y);
+                        }
+                    }
+                }
+            });
+        }
+
+        function createSliceEffect(x, y) {
+            const particles = [];
+            const particleCount = 15;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (Math.PI * 2 * i) / particleCount;
+                const speed = 6;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1
+                });
+            }
+
+            function updateParticles() {
+                ctx.save();
+                particles.forEach((p, index) => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= 0.02;
+                    
+                    if (p.life > 0) {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(255, 255, 255, ${p.life})`;
+                        ctx.fill();
+                    } else {
+                        particles.splice(index, 1);
+                    }
+                });
+                ctx.restore();
+                
+                if (particles.length > 0) {
+                    requestAnimationFrame(updateParticles);
+                }
+            }
+
+            updateParticles();
+        }
+
+        function endGame() {
+            isGameOver = true;
+            clearInterval(fruitInterval);
+            cancelAnimationFrame(gameLoop);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestScoreDisplay.textContent = bestScore;
+                localStorage.setItem('fruit-ninja-best-score', bestScore);
+            }
+
+            finalScoreDisplay.textContent = score;
+            gameOverScreen.classList.add('show');
+        }
+
+        // 鼠标/触摸事件处理
+        let isMouseDown = false;
+
+        function handleStart(e) {
+            e.preventDefault(); // 防止默认行为
+            isMouseDown = true;
+            const point = getEventPoint(e);
+            bladePoints = [point];
+            lastBladePoint = point;
+            bladeCanvas.style.display = 'block';
+        }
+
+        function handleMove(e) {
+            e.preventDefault(); // 防止默认行为
+            if (!isMouseDown) return;
+            
+            const point = getEventPoint(e);
+            if (lastBladePoint) {
+                const dx = point.x - lastBladePoint.x;
+                const dy = point.y - lastBladePoint.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // 只有当移动距离足够大时才添加新点
+                if (distance > 5) {
+                    bladePoints.push(point);
+                    
+                    // 保持刀光点的数量在合理范围内
+                    if (bladePoints.length > 10) {
+                        bladePoints.shift();
+                    }
+                    
+                    // 绘制刀光
+                    bladeCtx.clearRect(0, 0, bladeCanvas.width, bladeCanvas.height);
+                    bladeCtx.strokeStyle = 'white';
+                    bladeCtx.shadowColor = 'white';
+                    bladeCtx.shadowBlur = 10;
+                    bladeCtx.lineWidth = 3;
+                    bladeCtx.lineCap = 'round';
+                    
+                    // 绘制整个刀光轨迹
+                    bladeCtx.beginPath();
+                    bladeCtx.moveTo(bladePoints[0].x, bladePoints[0].y);
+                    for (let i = 1; i < bladePoints.length; i++) {
+                        bladeCtx.lineTo(bladePoints[i].x, bladePoints[i].y);
+                    }
+                    bladeCtx.stroke();
+                    
+                    lastBladePoint = point;
+                    checkSlice();
+                }
+            } else {
+                lastBladePoint = point;
+            }
+        }
+
+        function handleEnd(e) {
+            e.preventDefault(); // 防止默认行为
+            isMouseDown = false;
+            bladePoints = [];
+            bladeCtx.clearRect(0, 0, bladeCanvas.width, bladeCanvas.height);
+            bladeCanvas.style.display = 'none';
+            lastBladePoint = null;
+        }
+
+        function getEventPoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            const point = e.touches ? e.touches[0] : e;
+            return {
+                x: point.clientX - rect.left,
+                y: point.clientY - rect.top
+            };
+        }
+
+        // 事件监听
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('mouseup', handleEnd);
+        canvas.addEventListener('mouseleave', handleEnd);
+        canvas.addEventListener('touchstart', handleStart, { passive: false });
+        canvas.addEventListener('touchmove', handleMove, { passive: false });
+        canvas.addEventListener('touchend', handleEnd, { passive: false });
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌞' : '🌙';
+        }
+
+        // 检查系统主题
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('theme-icon').textContent = '🌙';
+        }
+    </script>
+</body>
+</html> <!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>水果忍者 - zhs焦虑球</title>
+    <style>
+        :root {
+            --bg-color: #f5f6fa;
+            --text-color: #2c3e50;
+            --score-bg: rgba(255, 255, 255, 0.2);
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --score-bg: rgba(0, 0, 0, 0.2);
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+            overflow: hidden;
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+            position: relative;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }
+
+        .canvas-container {
+            position: relative;
+            width: 800px;
+            height: 600px;
+            margin: 20px 0;
+        }
+
+        h1 {
+            margin: 20px 0;
+            font-size: 2em;
+            color: var(--text-color);
+        }
+
+        #gameCanvas {
+            background: rgba(0, 0, 0, 0.1);
+            border-radius: 10px;
+            position: absolute;
+            top: 0;
+            left: 0;
+        }
+
+        #blade {
+            position: absolute;
+            top: 0;
+            left: 0;
+            pointer-events: none;
+        }
+
+        .game-info {
+            position: relative;
+            display: flex;
+            gap: 20px;
+            z-index: 10;
+            margin-bottom: 20px;
+        }
+
+        .score-container {
+            background: var(--score-bg);
+            padding: 10px 20px;
+            border-radius: 5px;
+            color: white;
+            font-size: 1.2em;
+        }
+
+        .controls {
+            margin-top: 20px;
+            display: flex;
+            gap: 10px;
+            flex-wrap: wrap;
+            justify-content: center;
+        }
+
+        button {
+            padding: 10px 20px;
+            font-size: 1em;
+            cursor: pointer;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 5px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .theme-switch {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            background: none;
+            border: none;
+            color: var(--text-color);
+            z-index: 100;
+        }
+
+        .game-over {
+            position: fixed;
+            top: 50%;
+            left: 50%;
+            transform: translate(-50%, -50%);
+            background: rgba(0, 0, 0, 0.8);
+            color: white;
+            padding: 20px;
+            border-radius: 10px;
+            text-align: center;
+            display: none;
+            z-index: 100;
+        }
+
+        .game-over.show {
+            display: block;
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-switch" onclick="toggleTheme()" title="切换主题">
+        <span id="theme-icon">🌞</span>
+    </div>
+
+    <div class="container">
+        <h1>水果忍者</h1>
+        
+        <div class="game-info">
+            <div class="score-container">
+                分数: <span id="score">0</span>
+            </div>
+            <div class="score-container">
+                最高分: <span id="best-score">0</span>
+            </div>
+        </div>
+
+        <div class="canvas-container">
+            <canvas id="gameCanvas" width="800" height="600"></canvas>
+            <canvas id="blade" width="800" height="600"></canvas>
+        </div>
+
+        <div class="controls">
+            <button onclick="startGame()">开始游戏</button>
+        </div>
+
+        <div class="game-over" id="gameOver">
+            <h2>游戏结束</h2>
+            <p>最终得分: <span id="final-score">0</span></p>
+            <button onclick="startGame()">再来一次</button>
+        </div>
+    </div>
+
+    <script>
+        const canvas = document.getElementById('gameCanvas');
+        const ctx = canvas.getContext('2d');
+        const bladeCanvas = document.getElementById('blade');
+        const bladeCtx = bladeCanvas.getContext('2d');
+        const scoreDisplay = document.getElementById('score');
+        const bestScoreDisplay = document.getElementById('best-score');
+        const gameOverScreen = document.getElementById('gameOver');
+        const finalScoreDisplay = document.getElementById('final-score');
+
+        // 游戏配置
+        const GRAVITY = 0.25;
+        const FRUIT_INTERVAL = 1200;
+        const BLADE_FADE_TIME = 100;
+
+        // 游戏状态
+        let score = 0;
+        let bestScore = localStorage.getItem('fruit-ninja-best-score') || 0;
+        let isGameOver = false;
+        let fruits = [];
+        let bladePoints = [];
+        let lastBladePoint = null;
+        let gameLoop;
+        let fruitInterval;
+
+        // 水果类型
+        const FRUITS = [
+            { emoji: '🍎', points: 10, size: 60 },
+            { emoji: '🍐', points: 10, size: 60 },
+            { emoji: '🍊', points: 10, size: 60 },
+            { emoji: '🍋', points: 15, size: 60 },
+            { emoji: '🍇', points: 15, size: 60 },
+            { emoji: '🍉', points: 20, size: 75 },
+            { emoji: '🍌', points: 15, size: 60 },
+            { emoji: '🥝', points: 20, size: 55 },
+            { emoji: '💣', points: -50, size: 60, isBomb: true }
+        ];
+
+        bestScoreDisplay.textContent = bestScore;
+
+        class Fruit {
+            constructor(type) {
+                this.type = type;
+                this.x = Math.random() * (canvas.width * 0.6) + (canvas.width * 0.2);
+                this.y = canvas.height + 50;
+                const minSpeed = 2;
+                this.speedX = ((Math.random() - 0.5) * 6) + (Math.random() < 0.5 ? -minSpeed : minSpeed);
+                this.speedY = -Math.random() * 10 - 8;
+                this.rotation = 0;
+                this.rotationSpeed = (Math.random() - 0.5) * 0.1;
+                this.sliced = false;
+                this.fadeOut = 1;
+            }
+
+            update() {
+                if (!this.sliced) {
+                    this.speedY += GRAVITY;
+                } else {
+                    this.speedY += GRAVITY * 1.5;
+                    this.fadeOut -= 0.02;
+                }
+                
+                this.x += this.speedX;
+                this.y += this.speedY;
+
+                const margin = this.type.size / 2;
+                if (this.x < margin) {
+                    this.x = margin;
+                    this.speedX *= -0.8;
+                } else if (this.x > canvas.width - margin) {
+                    this.x = canvas.width - margin;
+                    this.speedX *= -0.8;
+                }
+
+                this.rotation += this.rotationSpeed;
+            }
+
+            draw() {
+                ctx.save();
+                ctx.translate(this.x, this.y);
+                ctx.rotate(this.rotation);
+                ctx.globalAlpha = this.fadeOut;
+                ctx.font = `${this.type.size}px Arial`;
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(this.type.emoji, 0, 0);
+                ctx.restore();
+            }
+
+            isOffScreen() {
+                return this.y > canvas.height + 100 || this.fadeOut <= 0;
+            }
+        }
+
+        function startGame() {
+            // 重置游戏状态
+            score = 0;
+            isGameOver = false;
+            fruits = [];
+            scoreDisplay.textContent = score;
+            gameOverScreen.classList.remove('show');
+
+            // 清除之前的定时器
+            clearInterval(fruitInterval);
+            cancelAnimationFrame(gameLoop);
+
+            // 开始生成水果
+            fruitInterval = setInterval(createFruit, FRUIT_INTERVAL);
+
+            // 开始游戏循环
+            gameLoop = requestAnimationFrame(update);
+        }
+
+        function createFruit() {
+            if (isGameOver) return;
+            
+            // 随机选择水果类型
+            const randomFruit = FRUITS[Math.floor(Math.random() * FRUITS.length)];
+            fruits.push(new Fruit(randomFruit));
+        }
+
+        function update() {
+            if (isGameOver) return;
+
+            // 清空画布
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            // 更新和绘制所有水果
+            fruits = fruits.filter(fruit => {
+                fruit.update();
+                fruit.draw();
+                return !fruit.isOffScreen();
+            });
+
+            // 检查刀光碰撞
+            if (bladePoints.length >= 2) {
+                checkSlice();
+            }
+
+            // 继续游戏循环
+            gameLoop = requestAnimationFrame(update);
+        }
+
+        function checkSlice() {
+            if (bladePoints.length < 2) return;
+            
+            const p1 = bladePoints[bladePoints.length - 2];
+            const p2 = bladePoints[bladePoints.length - 1];
+            
+            fruits.forEach(fruit => {
+                if (!fruit.sliced) {
+                    const fruitRadius = fruit.type.size / 2;
+                    
+                    // 计算刀光线段和水果的碰撞
+                    const dx = p2.x - p1.x;
+                    const dy = p2.y - p1.y;
+                    const len = Math.sqrt(dx * dx + dy * dy);
+                    
+                    if (len === 0) return;
+                    
+                    // 计算线段到圆心的距离
+                    const t = Math.max(0, Math.min(1, ((fruit.x - p1.x) * dx + (fruit.y - p1.y) * dy) / (len * len)));
+                    const closestX = p1.x + t * dx;
+                    const closestY = p1.y + t * dy;
+                    
+                    const distanceToLine = Math.sqrt(
+                        (fruit.x - closestX) * (fruit.x - closestX) + 
+                        (fruit.y - closestY) * (fruit.y - closestY)
+                    );
+                    
+                    if (distanceToLine < fruitRadius) {
+                        fruit.sliced = true;
+                        if (fruit.type.isBomb) {
+                            endGame();
+                        } else {
+                            score += fruit.type.points;
+                            scoreDisplay.textContent = score;
+                            createSliceEffect(fruit.x, fruit.y);
+                        }
+                    }
+                }
+            });
+        }
+
+        function createSliceEffect(x, y) {
+            const particles = [];
+            const particleCount = 15;
+            
+            for (let i = 0; i < particleCount; i++) {
+                const angle = (Math.PI * 2 * i) / particleCount;
+                const speed = 6;
+                particles.push({
+                    x,
+                    y,
+                    vx: Math.cos(angle) * speed,
+                    vy: Math.sin(angle) * speed,
+                    life: 1
+                });
+            }
+
+            function updateParticles() {
+                ctx.save();
+                particles.forEach((p, index) => {
+                    p.x += p.vx;
+                    p.y += p.vy;
+                    p.life -= 0.02;
+                    
+                    if (p.life > 0) {
+                        ctx.beginPath();
+                        ctx.arc(p.x, p.y, 3, 0, Math.PI * 2);
+                        ctx.fillStyle = `rgba(255, 255, 255, ${p.life})`;
+                        ctx.fill();
+                    } else {
+                        particles.splice(index, 1);
+                    }
+                });
+                ctx.restore();
+                
+                if (particles.length > 0) {
+                    requestAnimationFrame(updateParticles);
+                }
+            }
+
+            updateParticles();
+        }
+
+        function endGame() {
+            isGameOver = true;
+            clearInterval(fruitInterval);
+            cancelAnimationFrame(gameLoop);
+            
+            if (score > bestScore) {
+                bestScore = score;
+                bestScoreDisplay.textContent = bestScore;
+                localStorage.setItem('fruit-ninja-best-score', bestScore);
+            }
+
+            finalScoreDisplay.textContent = score;
+            gameOverScreen.classList.add('show');
+        }
+
+        // 鼠标/触摸事件处理
+        let isMouseDown = false;
+
+        function handleStart(e) {
+            e.preventDefault(); // 防止默认行为
+            isMouseDown = true;
+            const point = getEventPoint(e);
+            bladePoints = [point];
+            lastBladePoint = point;
+            bladeCanvas.style.display = 'block';
+        }
+
+        function handleMove(e) {
+            e.preventDefault(); // 防止默认行为
+            if (!isMouseDown) return;
+            
+            const point = getEventPoint(e);
+            if (lastBladePoint) {
+                const dx = point.x - lastBladePoint.x;
+                const dy = point.y - lastBladePoint.y;
+                const distance = Math.sqrt(dx * dx + dy * dy);
+                
+                // 只有当移动距离足够大时才添加新点
+                if (distance > 5) {
+                    bladePoints.push(point);
+                    
+                    // 保持刀光点的数量在合理范围内
+                    if (bladePoints.length > 10) {
+                        bladePoints.shift();
+                    }
+                    
+                    // 绘制刀光
+                    bladeCtx.clearRect(0, 0, bladeCanvas.width, bladeCanvas.height);
+                    bladeCtx.strokeStyle = 'white';
+                    bladeCtx.shadowColor = 'white';
+                    bladeCtx.shadowBlur = 10;
+                    bladeCtx.lineWidth = 3;
+                    bladeCtx.lineCap = 'round';
+                    
+                    // 绘制整个刀光轨迹
+                    bladeCtx.beginPath();
+                    bladeCtx.moveTo(bladePoints[0].x, bladePoints[0].y);
+                    for (let i = 1; i < bladePoints.length; i++) {
+                        bladeCtx.lineTo(bladePoints[i].x, bladePoints[i].y);
+                    }
+                    bladeCtx.stroke();
+                    
+                    lastBladePoint = point;
+                    checkSlice();
+                }
+            } else {
+                lastBladePoint = point;
+            }
+        }
+
+        function handleEnd(e) {
+            e.preventDefault(); // 防止默认行为
+            isMouseDown = false;
+            bladePoints = [];
+            bladeCtx.clearRect(0, 0, bladeCanvas.width, bladeCanvas.height);
+            bladeCanvas.style.display = 'none';
+            lastBladePoint = null;
+        }
+
+        function getEventPoint(e) {
+            const rect = canvas.getBoundingClientRect();
+            const point = e.touches ? e.touches[0] : e;
+            return {
+                x: point.clientX - rect.left,
+                y: point.clientY - rect.top
+            };
+        }
+
+        // 事件监听
+        canvas.addEventListener('mousedown', handleStart);
+        canvas.addEventListener('mousemove', handleMove);
+        canvas.addEventListener('mouseup', handleEnd);
+        canvas.addEventListener('mouseleave', handleEnd);
+        canvas.addEventListener('touchstart', handleStart, { passive: false });
+        canvas.addEventListener('touchmove', handleMove, { passive: false });
+        canvas.addEventListener('touchend', handleEnd, { passive: false });
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌞' : '🌙';
+        }
+
+        // 检查系统主题
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('theme-icon').textContent = '🌙';
+        }
+    </script>
+</body>
 </html> 
