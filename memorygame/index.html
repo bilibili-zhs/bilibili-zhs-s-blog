@@ -293,4 +293,299 @@
         startGame();
     </script>
 </body>
+</html> <!DOCTYPE html>
+<html lang="zh">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>记忆卡片 - zhs焦虑球</title>
+    <style>
+        :root {
+            --bg-color: #f5f6fa;
+            --text-color: #2c3e50;
+            --card-bg: #ffffff;
+            --card-back: #3498db;
+        }
+
+        [data-theme="dark"] {
+            --bg-color: #1a1a1a;
+            --text-color: #ffffff;
+            --card-bg: #2c3e50;
+            --card-back: #3498db;
+        }
+
+        body {
+            margin: 0;
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            font-family: 'Microsoft YaHei', sans-serif;
+            background-color: var(--bg-color);
+            color: var(--text-color);
+            transition: all 0.3s ease;
+        }
+
+        .container {
+            text-align: center;
+            padding: 20px;
+        }
+
+        h1 {
+            margin-bottom: 30px;
+            font-size: 2em;
+            color: var(--text-color);
+        }
+
+        .game-info {
+            display: flex;
+            justify-content: center;
+            gap: 30px;
+            margin-bottom: 30px;
+            font-size: 1.2em;
+        }
+
+        .info-box {
+            background: var(--card-bg);
+            padding: 10px 20px;
+            border-radius: 10px;
+            min-width: 150px;
+            box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+        }
+
+        .grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 20px;
+            max-width: 800px;
+            margin: 0 auto;
+            padding: 20px;
+        }
+
+        .card {
+            aspect-ratio: 3/4;
+            position: relative;
+            cursor: pointer;
+            transform-style: preserve-3d;
+            transition: transform 0.6s;
+        }
+
+        .card.flipped {
+            transform: rotateY(180deg);
+        }
+
+        .card-front, .card-back {
+            position: absolute;
+            width: 100%;
+            height: 100%;
+            backface-visibility: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 3em;
+            border-radius: 15px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+
+        .card-front {
+            background-color: var(--card-bg);
+            transform: rotateY(180deg);
+        }
+
+        .card-back {
+            background-color: var(--card-back);
+            color: white;
+        }
+
+        .card.matched {
+            animation: matched 0.5s ease-out;
+            pointer-events: none;
+        }
+
+        @keyframes matched {
+            0% { transform: scale(1) rotateY(180deg); }
+            50% { transform: scale(1.1) rotateY(180deg); }
+            100% { transform: scale(1) rotateY(180deg); }
+        }
+
+        .controls {
+            margin-top: 30px;
+            display: flex;
+            gap: 15px;
+            justify-content: center;
+        }
+
+        button {
+            padding: 12px 25px;
+            font-size: 1.1em;
+            cursor: pointer;
+            background: #3498db;
+            color: white;
+            border: none;
+            border-radius: 8px;
+            transition: all 0.3s ease;
+        }
+
+        button:hover {
+            opacity: 0.9;
+            transform: translateY(-2px);
+        }
+
+        .theme-switch {
+            position: fixed;
+            top: 20px;
+            right: 20px;
+            padding: 10px;
+            cursor: pointer;
+            font-size: 24px;
+            background: none;
+            border: none;
+            color: var(--text-color);
+        }
+
+        @media (max-width: 600px) {
+            .grid {
+                grid-template-columns: repeat(3, 1fr);
+                gap: 15px;
+                padding: 15px;
+            }
+
+            .card-front, .card-back {
+                font-size: 2.5em;
+            }
+        }
+    </style>
+</head>
+<body>
+    <div class="theme-switch" onclick="toggleTheme()" title="切换主题">
+        <span id="theme-icon">🌞</span>
+    </div>
+
+    <div class="container">
+        <h1>记忆卡片</h1>
+        
+        <div class="game-info">
+            <div class="info-box">
+                步数: <span id="moves">0</span>
+            </div>
+            <div class="info-box">
+                配对: <span id="matches">0</span>/8
+            </div>
+        </div>
+
+        <div class="grid" id="grid"></div>
+
+        <div class="controls">
+            <button onclick="startGame()">重新开始</button>
+        </div>
+    </div>
+
+    <script>
+        const EMOJIS = ['🐶', '🐱', '🐭', '🐹', '🐰', '🦊', '🐻', '🐼'];
+        const grid = document.getElementById('grid');
+        const movesDisplay = document.getElementById('moves');
+        const matchesDisplay = document.getElementById('matches');
+        
+        let cards = [];
+        let flippedCards = [];
+        let moves = 0;
+        let matches = 0;
+        let canFlip = true;
+
+        function createCard(emoji) {
+            const card = document.createElement('div');
+            card.className = 'card';
+            card.innerHTML = `
+                <div class="card-front">${emoji}</div>
+                <div class="card-back">❓</div>
+            `;
+            card.addEventListener('click', flipCard);
+            return card;
+        }
+
+        function startGame() {
+            // 重置状态
+            grid.innerHTML = '';
+            cards = [];
+            flippedCards = [];
+            moves = 0;
+            matches = 0;
+            canFlip = true;
+            movesDisplay.textContent = moves;
+            matchesDisplay.textContent = matches;
+
+            // 创建卡片对
+            const cardPairs = [...EMOJIS, ...EMOJIS];
+            // 洗牌
+            for (let i = cardPairs.length - 1; i > 0; i--) {
+                const j = Math.floor(Math.random() * (i + 1));
+                [cardPairs[i], cardPairs[j]] = [cardPairs[j], cardPairs[i]];
+            }
+
+            // 添加卡片到网格
+            cardPairs.forEach(emoji => {
+                const card = createCard(emoji);
+                cards.push(card);
+                grid.appendChild(card);
+            });
+        }
+
+        function flipCard() {
+            if (!canFlip || this.classList.contains('flipped') || flippedCards.length >= 2) return;
+
+            this.classList.add('flipped');
+            flippedCards.push(this);
+
+            if (flippedCards.length === 2) {
+                moves++;
+                movesDisplay.textContent = moves;
+                canFlip = false;
+
+                const [card1, card2] = flippedCards;
+                const emoji1 = card1.querySelector('.card-front').textContent;
+                const emoji2 = card2.querySelector('.card-front').textContent;
+
+                if (emoji1 === emoji2) {
+                    matches++;
+                    matchesDisplay.textContent = matches;
+                    flippedCards.forEach(card => {
+                        card.classList.add('matched');
+                        card.style.cursor = 'default';
+                    });
+                    flippedCards = [];
+                    canFlip = true;
+
+                    if (matches === EMOJIS.length) {
+                        setTimeout(() => {
+                            alert(`恭喜！你用了 ${moves} 步完成了游戏！`);
+                        }, 500);
+                    }
+                } else {
+                    setTimeout(() => {
+                        flippedCards.forEach(card => card.classList.remove('flipped'));
+                        flippedCards = [];
+                        canFlip = true;
+                    }, 1000);
+                }
+            }
+        }
+
+        function toggleTheme() {
+            const root = document.documentElement;
+            const isDark = root.getAttribute('data-theme') === 'dark';
+            root.setAttribute('data-theme', isDark ? 'light' : 'dark');
+            document.getElementById('theme-icon').textContent = isDark ? '🌞' : '🌙';
+        }
+
+        // 检查系统主题
+        if (window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches) {
+            document.documentElement.setAttribute('data-theme', 'dark');
+            document.getElementById('theme-icon').textContent = '🌙';
+        }
+
+        // 开始游戏
+        startGame();
+    </script>
+</body>
 </html> 
