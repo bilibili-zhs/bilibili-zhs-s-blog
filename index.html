@@ -4,10 +4,8 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>zhs666的博客 zhs666's blog</title>
-    <link rel="icon" type="image/jpeg" href="https://pic.imagurl.cn/imagurl/2025/04/26/680ca005417a7.jpg
-https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png">
-    <link rel="shortcut icon" type="image/jpeg" href="https://pic.imagurl.cn/imagurl/2025/04/26/680ca005417a7.jpg
-https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png">
+    <link rel="icon" type="image/jpeg" href="https://pic.imagurl.cn/imagurl/2025/04/26/680ca005417a7.jpg">
+    <link rel="shortcut icon" type="image/jpeg" href="https://pic.imagurl.cn/imagurl/2025/04/26/680ca005417a7.jpg">
     <style>
         /* 添加深色模式变量 */
         :root {
@@ -654,10 +652,13 @@ https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png">
     <div class="music-player">
         <div class="music-controls">
             <button class="music-btn" onclick="previousTrack()">⏮</button>
-            <button class="music-btn" id="playPauseBtn" onclick="togglePlay()">▶</button>
+            <button class="music-btn" id="playPauseBtn">▶</button>
             <button class="music-btn" onclick="nextTrack()">⏭</button>
+            <button class="music-btn" id="retryBtn" style="display:none;">🔄</button>
         </div>
+        <script src="script.js" defer></script>
         <span id="now-playing">无音乐播放</span>
+        <span id="error-message" style="color: #e74c3c; display:none;">音乐加载失败，请点击重试按钮</span>
         <div class="volume-control">
             <span id="volumeIcon" onclick="toggleMute()">🔊</span>
             <input type="range" class="volume-slider" id="volumeSlider" min="0" max="100" value="100" onchange="changeVolume(this.value)">
@@ -700,8 +701,7 @@ https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png">
             </p>
         </div>
         <a href="https://space.bilibili.com/1851635221" target="_blank">
-            <img src="https://pic.imagurl.cn/imagurl/2025/04/26/680ca005417a7.jpg
-https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png" alt="头像" class="profile-avatar">
+            <img src="https://pic.imagurl.cn/imagurl/2025/04/26/680ca005417a7.jpg" alt="头像" class="profile-avatar">
         </a>
     </div>
 
@@ -1032,8 +1032,33 @@ https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png" alt="头像" class=
         const playlist = [
             { title: 'Counting Stars', url: 'music/1.mp3' },
             { title: 'Life Force', url: 'music/2.mp3' },
-            { title: 'Chess', url: 'music/3.mp3' }
+            { title: 'Chess', url: 'music/3.mp3' },
+            { title: '备用音乐', url: 'music/fallback.mp3' }
         ];
+        
+        function retryLoadMusic() {
+            const errorMessage = document.getElementById('error-message');
+            const retryBtn = document.getElementById('retryBtn');
+            
+            errorMessage.style.display = 'none';
+            retryBtn.style.display = 'none';
+            currentTrack = playlist.length - 1; // 使用备用音乐
+            if (isPlaying) {
+                try {
+                    audio.src = playlist[currentTrack].url;
+                    audio.play().catch(error => {
+                        document.getElementById('now-playing').textContent = '无法播放: ' + playlist[currentTrack].title;
+                        errorMessage.style.display = 'inline';
+                        retryBtn.style.display = 'inline';
+                    });
+                    document.getElementById('now-playing').textContent = playlist[currentTrack].title;
+                } catch (error) {
+                    document.getElementById('now-playing').textContent = '播放出错';
+                    errorMessage.style.display = 'inline';
+                    retryBtn.style.display = 'inline';
+                }
+            }
+        }
 
         let currentTrack = 0;
         let isPlaying = false;
@@ -1042,6 +1067,8 @@ https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png" alt="头像" class=
         function togglePlay() {
             const playPauseBtn = document.getElementById('playPauseBtn');
             const nowPlaying = document.getElementById('now-playing');
+            const errorMessage = document.getElementById('error-message');
+            const retryBtn = document.getElementById('retryBtn');
             
             if (isPlaying) {
                 audio.pause();
@@ -1049,14 +1076,24 @@ https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png" alt="头像" class=
                 nowPlaying.textContent = '已暂停';
             } else {
                 try {
+                    errorMessage.style.display = 'none';
+                    retryBtn.style.display = 'none';
                     audio.src = playlist[currentTrack].url;
                     audio.onerror = function() {
                         nowPlaying.textContent = '无法播放: ' + playlist[currentTrack].title;
                         playPauseBtn.textContent = '▶';
                         isPlaying = false;
+                        errorMessage.style.display = 'inline';
+                        retryBtn.style.display = 'inline';
                     };
                     audio.onloadeddata = function() {
-                        audio.play();
+                        audio.play().catch(error => {
+                            nowPlaying.textContent = '无法播放: ' + playlist[currentTrack].title;
+                            playPauseBtn.textContent = '▶';
+                            isPlaying = false;
+                            errorMessage.style.display = 'inline';
+                            retryBtn.style.display = 'inline';
+                        });
                         playPauseBtn.textContent = '⏸';
                         nowPlaying.textContent = playlist[currentTrack].title;
                     };
@@ -1064,6 +1101,8 @@ https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png" alt="头像" class=
                     nowPlaying.textContent = '播放出错';
                     playPauseBtn.textContent = '▶';
                     isPlaying = false;
+                    errorMessage.style.display = 'inline';
+                    retryBtn.style.display = 'inline';
                     return;
                 }
             }
@@ -1071,31 +1110,49 @@ https://pic.imagurl.cn/imagurl/2025/04/28/680f4921d65c1.png" alt="头像" class=
         }
 
         function nextTrack() {
+            const errorMessage = document.getElementById('error-message');
+            const retryBtn = document.getElementById('retryBtn');
+            
+            errorMessage.style.display = 'none';
+            retryBtn.style.display = 'none';
             currentTrack = (currentTrack + 1) % playlist.length;
             if (isPlaying) {
                 try {
                     audio.src = playlist[currentTrack].url;
                     audio.play().catch(error => {
                         document.getElementById('now-playing').textContent = '无法播放: ' + playlist[currentTrack].title;
+                        errorMessage.style.display = 'inline';
+                        retryBtn.style.display = 'inline';
                     });
                     document.getElementById('now-playing').textContent = playlist[currentTrack].title;
                 } catch (error) {
                     document.getElementById('now-playing').textContent = '播放出错';
+                    errorMessage.style.display = 'inline';
+                    retryBtn.style.display = 'inline';
                 }
             }
         }
 
         function previousTrack() {
+            const errorMessage = document.getElementById('error-message');
+            const retryBtn = document.getElementById('retryBtn');
+            
+            errorMessage.style.display = 'none';
+            retryBtn.style.display = 'none';
             currentTrack = (currentTrack - 1 + playlist.length) % playlist.length;
             if (isPlaying) {
                 try {
                     audio.src = playlist[currentTrack].url;
                     audio.play().catch(error => {
                         document.getElementById('now-playing').textContent = '无法播放: ' + playlist[currentTrack].title;
+                        errorMessage.style.display = 'inline';
+                        retryBtn.style.display = 'inline';
                     });
                     document.getElementById('now-playing').textContent = playlist[currentTrack].title;
                 } catch (error) {
                     document.getElementById('now-playing').textContent = '播放出错';
+                    errorMessage.style.display = 'inline';
+                    retryBtn.style.display = 'inline';
                 }
             }
         }
